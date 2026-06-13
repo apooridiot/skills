@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+const dotenv = require("dotenv");
+const path = require("path");
+dotenv.config({
+  path: path.resolve(__dirname, "../.env")
+});
+
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
