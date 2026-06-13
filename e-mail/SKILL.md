@@ -18,7 +18,7 @@ version: "1.0.0"
    - 从 `@skills/e-mail/.env` 读取：
      - EMAIL_USER
      - EMAIL_PASS
-   - 若 `@skills/e-mail/.env` 不存在或字段缺失，则进入初始化配置流程。
+   - 若 `@skills/e-mail/.env` 不存在或字段缺失，则进入初始化配置流程
 4. **JSON 格式输出**：所有命令输出标准 JSON，`success: true` 或 `success: false` + `message`。
 
 ## 前置条件
@@ -196,6 +196,7 @@ node @skills/e-mail/scripts/imap.bundle.js list-mailboxes
 - **认证失败**：提醒用户检查授权码是否正确、是否在网页端开启了 IMAP/SMTP 服务
 - **连接超时**：网络波动或邮箱服务器限流，建议稍后重试
 - **授权码过期/失效**：告知用户在邮箱网页端重新生成授权码，然后引导用户进入初始化配置流程
+- **邮件结果数据量过大**：写入本地工作空间，禁止直接完整输出，避免内容被截断
 
 ## 安全说明
 

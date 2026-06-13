@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-const dotenv = require("dotenv");
-const path = require("path");
-dotenv.config({
-  path: path.resolve(__dirname, "../.env")
-});
-
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -48693,6 +48687,24 @@ var RETRYABLE_NETWORK_CODES = /* @__PURE__ */ new Set([
   "ECONNREFUSED"
 ]);
 var IMAP_ID = { name: "workbuddy", version: "1.0.0", vendor: "tencent", "support-email": "workbuddy@tencent.com" };
+var envPath = path.resolve(__dirname, "../.env");
+
+function loadEnv() {
+  if (!fs.existsSync(envPath)) return;
+  const content = fs.readFileSync(envPath, "utf-8");
+  content.split("\n").forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const [key, ...rest] = trimmed.split("=");
+    if (!key || rest.length === 0) return;
+    const value = rest.join("=").trim();
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  });
+}
+loadEnv();
+
 function getEmailUser() {
   return (process.env.EMAIL_USER || "").trim();
 }
