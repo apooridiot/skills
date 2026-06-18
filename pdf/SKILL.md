@@ -232,18 +232,21 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ### Extract Text from Scanned PDFs
 ```python
-# Requires: pip install pytesseract pdf2image
-import pytesseract
-from pdf2image import convert_from_path
+# Requires: pip install pypdfium2
+import pypdfium2 as pdfium
 
-# Convert PDF to images
-images = convert_from_path('scanned.pdf')
+# Load PDF
+pdf = pdfium.PdfDocument('scanned.pdf')
 
-# OCR each page
 text = ""
-for i, image in enumerate(images):
+for i, page in enumerate(pdf):
+    # Render page to PNG (scale=2 improves resolution for the vision model)
+    image_path = f"page_{i+1}.png"
+    page.render(scale=2).to_pil().save(image_path)
+    
     text += f"Page {i+1}:\n"
-    text += pytesseract.image_to_string(image)
+    # Pass the PNG to your vision model here
+    # text += call_vision_model(image_path) 
     text += "\n\n"
 
 print(text)
@@ -303,7 +306,7 @@ with open("encrypted.pdf", "wb") as output:
 | Extract tables | pdfplumber | `page.extract_tables()` |
 | Create PDFs | reportlab | Canvas or Platypus |
 | Command line merge | qpdf | `qpdf --empty --pages ...` |
-| OCR scanned PDFs | pytesseract | Convert to image first |
+| OCR scanned PDFs | pypdfium2 + Vision Model | Render to PNG first |
 | Fill PDF forms | pdf-lib or pypdf (see FORMS.md) | See FORMS.md |
 
 ## Next Steps
