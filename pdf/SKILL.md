@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and extract text from scanned PDFs. MUST STRICTLY use the Vision Model for OCR. NEVER use, install, or attempt to run local OCR tools (like Tesseract, pytesseract, paddleocr, etc.). If the document is large (e.g., 100 pages), do not worry about time; process it via Vision Model. If the user mentions a .pdf file or asks to produce one, use this skill.
+description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, aand OCR on scanned PDFs. MUST STRICTLY use the Vision Model for OCR. NEVER install or use local OCR tools (e.g., Tesseract). You MUST process ALL pages without skipping. If the user mentions a .pdf file or asks to produce one, use this skill.
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -243,71 +243,36 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ## Common Tasks
 
-### Extract Text from Scanned PDFs (Strictly via Vision Model)
+### Extract Text from Scanned PDFs
 
-**CRITICAL RULE:** Do NOT write scripts using `tesseract`, `pytesseract`, or any local OCR libraries.
-You must divide the task into two rigorous steps: First, run a Python script to convert the PDF to images. Second, use your native Vision/Multimodal capabilities to read the images.
-
-#### Step 1: Run this Python script to safely extract high-res images
+**Step 1: Safely render PDF to high-res images**
 
 ```python
 # Requires: pip install pypdfium2
 import os
 import pypdfium2 as pdfium
 
-def extract_pdf_to_images(pdf_path, output_dir="pdf_images", scale=2):
-    """
-    Safely converts a scanned PDF into PNG images page by page.
-    """
-    if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f"Cannot find PDF file: {pdf_path}")
+pdf_path = "scanned.pdf"
+output_dir = "pdf_images"
+os.makedirs(output_dir, exist_ok=True)
 
-    os.makedirs(output_dir, exist_ok=True)
-    image_paths = []
+pdf = pdfium.PdfDocument(pdf_path)
+total_pages = len(pdf)
 
-    try:
-        # Load PDF
-        pdf = pdfium.PdfDocument(pdf_path)
-        total_pages = len(pdf)
-        print(f"Successfully loaded '{pdf_path}' with {total_pages} pages.")
+for i in range(total_pages):
+    image_path = os.path.join(output_dir, f"page_{i+1:03d}.png")
+    pdf[i].render(scale=2).to_pil().save(image_path, format="PNG")
 
-        for i in range(total_pages):
-            page = pdf[i]
-            # Use zero-padded filenames for correct sorting (e.g., page_001.png)
-            image_path = os.path.join(output_dir, f"page_{i+1:03d}.png")
-
-            # Render and save
-            pil_image = page.render(scale=scale).to_pil()
-            pil_image.save(image_path, format="PNG")
-            image_paths.append(image_path)
-
-            print(f"Saved: {image_path}")
-
-        print("\n[SUCCESS] All pages rendered. Proceed to Step 2 using Vision Tool.")
-        return image_paths
-
-    except Exception as e:
-        print(f"[ERROR] Failed to process PDF: {str(e)}")
-        raise e
-    finally:
-        # Strictly ensure the document is closed to free memory
-        if 'pdf' in locals():
-            pdf.close()
-
-# Execute the extraction (Modify 'scanned.pdf' to your actual file name)
-if __name__ == "__main__":
-    extract_pdf_to_images("scanned.pdf", output_dir="pdf_pages_output")
+pdf.close()
+print(f"Successfully rendered {total_pages} pages into '{output_dir}'.")
 ```
 
-#### Step 2: Extract text using Vision Tool (Iterative Process)
+**Step 2: Vision Tool Extraction (Agent Action)**
+Once images are generated, take the following actions using your Vision capability:
 
-Once the images are generated in the `pdf_pages_output` directory, **DO NOT write another Python script for OCR.**
-Instead, take these actions:
-
-1. Use your built-in Vision/Multimodal tool to read the generated `.png` files.
-2. For long documents (e.g., 60 pages), process them in small batches (e.g., 3-5 pages at a time) to prevent context overflow.
-3. Immediately append the text results from your Vision tool into a local `extracted_text.txt` file (using bash `echo` or a simple Python file writer).
-4. Repeat the process until all images in the folder are processed.
+1. **NO LOCAL OCR**: You are strictly forbidden from writing scripts using `pytesseract` or similar tools.
+2. **EXHAUSTIVE READ**: You MUST read EVERY `.png` file. Do NOT skip pages or read only "key sections".
+3. **BATCHING**: To prevent context overflow on large PDFs, process images in small batches (e.g., 3-5 pages at a time) and immediately append the text to a local `.txt` file. Repeat until all pages are fully processed.
 
 ### Add Watermark
 
@@ -356,18 +321,26 @@ with open("encrypted.pdf", "wb") as output:
     writer.write(output)
 ```
 
+## OCR Constraints
+
+When handling scanned PDFs:
+
+- **Vision Model Only**: Absolutely NO `tesseract`, `pytesseract`, or `easyocr`.
+- **No Skipping**: Exhaustive reading is mandatory. A 60-page PDF requires extracting text from exactly 60 images.
+- **Save Incrementally**: Always write extracted text to a file iteratively to avoid context limit errors.
+
 ## Quick Reference
 
-| Task               | Best Tool                       | Command/Code                                          |
-| ------------------ | ------------------------------- | ----------------------------------------------------- |
-| Merge PDFs         | pypdf                           | `writer.add_page(page)`                               |
-| Split PDFs         | pypdf                           | One page per file                                     |
-| Extract text       | pdfplumber                      | `page.extract_text()`                                 |
-| Extract tables     | pdfplumber                      | `page.extract_tables()`                               |
-| Create PDFs        | reportlab                       | Canvas or Platypus                                    |
-| Command line merge | qpdf                            | `qpdf --empty --pages ...`                            |
-| OCR scanned PDFs   | pypdfium2 + Vision Model        | Render to PNG -> Vision Model (STRICTLY NO Tesseract) |
-| Fill PDF forms     | pdf-lib or pypdf (see FORMS.md) | See FORMS.md                                          |
+| Task               | Best Tool                       | Command/Code                                              |
+| ------------------ | ------------------------------- | --------------------------------------------------------- |
+| Merge PDFs         | pypdf                           | `writer.add_page(page)`                                   |
+| Split PDFs         | pypdf                           | One page per file                                         |
+| Extract text       | pdfplumber                      | `page.extract_text()`                                     |
+| Extract tables     | pdfplumber                      | `page.extract_tables()`                                   |
+| Create PDFs        | reportlab                       | Canvas or Platypus                                        |
+| Command line merge | qpdf                            | `qpdf --empty --pages ...`                                |
+| OCR scanned PDFs   | pypdfium2 + Vision Model        | Render to PNG -> Vision Model (No Tesseract, No skipping) |
+| Fill PDF forms     | pdf-lib or pypdf (see FORMS.md) | See FORMS.md                                              |
 
 ## Next Steps
 
