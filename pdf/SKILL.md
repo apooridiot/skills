@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill.
+description: Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and extract text from scanned PDFs. MUST STRICTLY use the Vision Model for OCR. NEVER use, install, or attempt to run local OCR tools (like Tesseract, pytesseract, paddleocr, etc.). If the document is large (e.g., 100 pages), do not worry about time; process it via Vision Model. If the user mentions a .pdf file or asks to produce one, use this skill.
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
@@ -30,6 +30,7 @@ for page in reader.pages:
 ### pypdf - Basic Operations
 
 #### Merge PDFs
+
 ```python
 from pypdf import PdfWriter, PdfReader
 
@@ -44,6 +45,7 @@ with open("merged.pdf", "wb") as output:
 ```
 
 #### Split PDF
+
 ```python
 reader = PdfReader("input.pdf")
 for i, page in enumerate(reader.pages):
@@ -54,6 +56,7 @@ for i, page in enumerate(reader.pages):
 ```
 
 #### Extract Metadata
+
 ```python
 reader = PdfReader("document.pdf")
 meta = reader.metadata
@@ -64,6 +67,7 @@ print(f"Creator: {meta.creator}")
 ```
 
 #### Rotate Pages
+
 ```python
 reader = PdfReader("input.pdf")
 writer = PdfWriter()
@@ -79,6 +83,7 @@ with open("rotated.pdf", "wb") as output:
 ### pdfplumber - Text and Table Extraction
 
 #### Extract Text with Layout
+
 ```python
 import pdfplumber
 
@@ -89,6 +94,7 @@ with pdfplumber.open("document.pdf") as pdf:
 ```
 
 #### Extract Tables
+
 ```python
 with pdfplumber.open("document.pdf") as pdf:
     for i, page in enumerate(pdf.pages):
@@ -100,6 +106,7 @@ with pdfplumber.open("document.pdf") as pdf:
 ```
 
 #### Advanced Table Extraction
+
 ```python
 import pandas as pd
 
@@ -121,6 +128,7 @@ if all_tables:
 ### reportlab - Create PDFs
 
 #### Basic PDF Creation
+
 ```python
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -140,6 +148,7 @@ c.save()
 ```
 
 #### Create PDF with Multiple Pages
+
 ```python
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
@@ -171,6 +180,7 @@ doc.build(story)
 **IMPORTANT**: Never use Unicode subscript/superscript characters (₀₁₂₃₄₅₆₇₈₉, ⁰¹²³⁴⁵⁶⁷⁸⁹) in ReportLab PDFs. The built-in fonts do not include these glyphs, causing them to render as solid black boxes.
 
 Instead, use ReportLab's XML markup tags in Paragraph objects:
+
 ```python
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
@@ -189,6 +199,7 @@ For canvas-drawn text (not Paragraph objects), manually adjust font the size and
 ## Command-Line Tools
 
 ### pdftotext (poppler-utils)
+
 ```bash
 # Extract text
 pdftotext input.pdf output.txt
@@ -201,6 +212,7 @@ pdftotext -f 1 -l 5 input.pdf output.txt  # Pages 1-5
 ```
 
 ### qpdf
+
 ```bash
 # Merge PDFs
 qpdf --empty --pages file1.pdf file2.pdf -- merged.pdf
@@ -217,6 +229,7 @@ qpdf --password=mypassword --decrypt encrypted.pdf decrypted.pdf
 ```
 
 ### pdftk (if available)
+
 ```bash
 # Merge
 pdftk file1.pdf file2.pdf cat output merged.pdf
@@ -230,29 +243,74 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ## Common Tasks
 
-### Extract Text from Scanned PDFs
+### Extract Text from Scanned PDFs (Strictly via Vision Model)
+
+**CRITICAL RULE:** Do NOT write scripts using `tesseract`, `pytesseract`, or any local OCR libraries.
+You must divide the task into two rigorous steps: First, run a Python script to convert the PDF to images. Second, use your native Vision/Multimodal capabilities to read the images.
+
+#### Step 1: Run this Python script to safely extract high-res images
+
 ```python
 # Requires: pip install pypdfium2
+import os
 import pypdfium2 as pdfium
 
-# Load PDF
-pdf = pdfium.PdfDocument('scanned.pdf')
+def extract_pdf_to_images(pdf_path, output_dir="pdf_images", scale=2):
+    """
+    Safely converts a scanned PDF into PNG images page by page.
+    """
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"Cannot find PDF file: {pdf_path}")
 
-text = ""
-for i, page in enumerate(pdf):
-    # Render page to PNG (scale=2 improves resolution for the vision model)
-    image_path = f"page_{i+1}.png"
-    page.render(scale=2).to_pil().save(image_path)
-    
-    text += f"Page {i+1}:\n"
-    # Pass the PNG to your vision model here
-    # text += call_vision_model(image_path) 
-    text += "\n\n"
+    os.makedirs(output_dir, exist_ok=True)
+    image_paths = []
 
-print(text)
+    try:
+        # Load PDF
+        pdf = pdfium.PdfDocument(pdf_path)
+        total_pages = len(pdf)
+        print(f"Successfully loaded '{pdf_path}' with {total_pages} pages.")
+
+        for i in range(total_pages):
+            page = pdf[i]
+            # Use zero-padded filenames for correct sorting (e.g., page_001.png)
+            image_path = os.path.join(output_dir, f"page_{i+1:03d}.png")
+
+            # Render and save
+            pil_image = page.render(scale=scale).to_pil()
+            pil_image.save(image_path, format="PNG")
+            image_paths.append(image_path)
+
+            print(f"Saved: {image_path}")
+
+        print("\n[SUCCESS] All pages rendered. Proceed to Step 2 using Vision Tool.")
+        return image_paths
+
+    except Exception as e:
+        print(f"[ERROR] Failed to process PDF: {str(e)}")
+        raise e
+    finally:
+        # Strictly ensure the document is closed to free memory
+        if 'pdf' in locals():
+            pdf.close()
+
+# Execute the extraction (Modify 'scanned.pdf' to your actual file name)
+if __name__ == "__main__":
+    extract_pdf_to_images("scanned.pdf", output_dir="pdf_pages_output")
 ```
 
+#### Step 2: Extract text using Vision Tool (Iterative Process)
+
+Once the images are generated in the `pdf_pages_output` directory, **DO NOT write another Python script for OCR.**
+Instead, take these actions:
+
+1. Use your built-in Vision/Multimodal tool to read the generated `.png` files.
+2. For long documents (e.g., 60 pages), process them in small batches (e.g., 3-5 pages at a time) to prevent context overflow.
+3. Immediately append the text results from your Vision tool into a local `extracted_text.txt` file (using bash `echo` or a simple Python file writer).
+4. Repeat the process until all images in the folder are processed.
+
 ### Add Watermark
+
 ```python
 from pypdf import PdfReader, PdfWriter
 
@@ -272,6 +330,7 @@ with open("watermarked.pdf", "wb") as output:
 ```
 
 ### Extract Images
+
 ```bash
 # Using pdfimages (poppler-utils)
 pdfimages -j input.pdf output_prefix
@@ -280,6 +339,7 @@ pdfimages -j input.pdf output_prefix
 ```
 
 ### Password Protection
+
 ```python
 from pypdf import PdfReader, PdfWriter
 
@@ -298,16 +358,16 @@ with open("encrypted.pdf", "wb") as output:
 
 ## Quick Reference
 
-| Task | Best Tool | Command/Code |
-|------|-----------|--------------|
-| Merge PDFs | pypdf | `writer.add_page(page)` |
-| Split PDFs | pypdf | One page per file |
-| Extract text | pdfplumber | `page.extract_text()` |
-| Extract tables | pdfplumber | `page.extract_tables()` |
-| Create PDFs | reportlab | Canvas or Platypus |
-| Command line merge | qpdf | `qpdf --empty --pages ...` |
-| OCR scanned PDFs | pypdfium2 + Vision Model | Render to PNG first |
-| Fill PDF forms | pdf-lib or pypdf (see FORMS.md) | See FORMS.md |
+| Task               | Best Tool                       | Command/Code                                          |
+| ------------------ | ------------------------------- | ----------------------------------------------------- |
+| Merge PDFs         | pypdf                           | `writer.add_page(page)`                               |
+| Split PDFs         | pypdf                           | One page per file                                     |
+| Extract text       | pdfplumber                      | `page.extract_text()`                                 |
+| Extract tables     | pdfplumber                      | `page.extract_tables()`                               |
+| Create PDFs        | reportlab                       | Canvas or Platypus                                    |
+| Command line merge | qpdf                            | `qpdf --empty --pages ...`                            |
+| OCR scanned PDFs   | pypdfium2 + Vision Model        | Render to PNG -> Vision Model (STRICTLY NO Tesseract) |
+| Fill PDF forms     | pdf-lib or pypdf (see FORMS.md) | See FORMS.md                                          |
 
 ## Next Steps
 
