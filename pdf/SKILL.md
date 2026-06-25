@@ -231,16 +231,17 @@ pdftk input.pdf rotate 1east output rotated.pdf
 ## Common Tasks
 
 ### Extract Text from Scanned PDFs
+
+**IMPORTANT**: Never use pytesseract.
+
 ```python
 # Requires: pip install pdf2image
-# (LLM vision capability required)
 from pdf2image import convert_from_path
 
 # Convert PDF to images
 images = convert_from_path('scanned.pdf')
 
 # OCR scanned PDFs using multimodal LLM:
-# Do not use pytesseract.
 # Send page image directly to LLM and extract text.
 
 text += "<LLM_OUTPUT>"
