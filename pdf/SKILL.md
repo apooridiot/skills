@@ -232,14 +232,24 @@ pdftk input.pdf rotate 1east output rotated.pdf
 
 ### Extract Text from Scanned PDFs
 
-**IMPORTANT**: Never use pytesseract.
+**IMPORTANT**: Never use tesseract or pytesseract.
 
 ```python
-# Requires: pip install pdf2image
-from pdf2image import convert_from_path
+# Requires: pip install pypdfium2 pillow
+import pypdfium2 as pdfium
+from PIL import Image
 
-# Convert PDF to images
-images = convert_from_path('scanned.pdf')
+# Load PDF
+pdf = pdfium.PdfDocument("document.pdf")
+
+# Render pages to images
+for i, page in enumerate(pdf):
+    bitmap = page.render(
+        scale=2.0,  # Higher resolution
+        rotation=0  # No rotation
+    )
+    img = bitmap.to_pil()
+    img.save(f"page_{i+1}.png", "PNG")
 
 # OCR scanned PDFs using multimodal LLM:
 # Send page image directly to LLM and extract text.
