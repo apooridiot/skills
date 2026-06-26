@@ -1,3 +1,5 @@
 .env
 
+.token_cache.json
+
 _bm_skillid_migration.json
